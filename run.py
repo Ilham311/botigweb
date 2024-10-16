@@ -10,7 +10,7 @@ import threading
 # Telegram bot setup
 API_ID = 961780
 API_HASH = "bbbfa43f067e1e8e2fb41f334d32a6a7"
-BOT_TOKEN = "7375007973:AAEqgy2z2J2-Xii_wOhea98BmwMSdW82bHM"
+BOT_TOKEN = "7342220709:AAEyZVJPKuy6w_N9rwrVW3GghYyxx3jixww"
 
 app_bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 progress_data = {}
