@@ -18,7 +18,7 @@ progress_data = {}
 async def progress(current, total):
     print(f"{current * 100 / total:.1f}%")
 
-
+# Fungsi untuk API Twitter
 def twitter_api(twitter_url):
     u = "https://twitter-downloader-download-twitter-videos-gifs-and-images.p.rapidapi.com/status"
     q = {"url": twitter_url}
@@ -86,6 +86,7 @@ def get_tiktok_play_url(api_url):
     except json.JSONDecodeError:
         return None
 
+# Fungsi untuk mendapatkan URL video YouTube atau platform lainnya
 def get_video_url(url, platform):
     headers = {
         "Accept": "application/json",
@@ -96,6 +97,7 @@ def get_video_url(url, platform):
     result = response.json()
     return result.get("url", None)
 
+# Download dan upload untuk Instagram
 async def handle_instagram(client, chat_id, url):
     media_data = get_instagram_media(url)
     if media_data and not media_data.get('error'):
@@ -104,14 +106,17 @@ async def handle_instagram(client, chat_id, url):
     else:
         await client.send_message(chat_id, "Gagal mendapatkan video dari Instagram.")
 
+# Download dan upload untuk Facebook
 async def handle_facebook(client, chat_id, url):
     video_url = get_facebook_video_url(url)
     await download_and_upload(client, chat_id, video_url)
 
+# Download dan upload untuk YouTube
 async def handle_youtube(client, chat_id, url):
     video_url = get_video_url(url, 'YouTube')
     await download_and_upload(client, chat_id, video_url)
 
+# Download dan upload untuk TikTok
 async def handle_tiktok(client, chat_id, url):
     tikwm_api_url = f'https://www.tikwm.com/api/?url={url}'
     video_url = get_tiktok_play_url(tikwm_api_url)
@@ -119,10 +124,12 @@ async def handle_tiktok(client, chat_id, url):
         video_url = get_video_url(url, 'TikTok')
     await download_and_upload(client, chat_id, video_url)
 
+# Download dan upload untuk Twitter
 async def handle_twitter(client, chat_id, url):
     video_url = twitter_api(url)
     await download_and_upload(client, chat_id, video_url)
 
+# Fungsi untuk mengunduh dan mengunggah video
 async def download_and_upload(client, chat_id, video_url):
     if video_url:
         upload_msg = await client.send_message(chat_id, "Video berhasil diunduh. Sedang mengunggah...")
@@ -134,6 +141,7 @@ async def download_and_upload(client, chat_id, video_url):
     else:
         await client.send_message(chat_id, "Terjadi kesalahan saat mengambil URL video.")
 
+# Fungsi untuk menghapus pesan setelah beberapa waktu
 async def delete_messages(client, chat_id, *message_ids):
     for message_id in message_ids:
         try:
@@ -141,6 +149,7 @@ async def delete_messages(client, chat_id, *message_ids):
         except Exception as e:
             print(f"Failed to delete message {message_id}: {e}")
 
+# Menangani perintah unduh dan unggah
 @app_bot.on_message(filters.command(['ig', 'yt', 'tw', 'tt', 'fb']))
 async def download_and_upload_command(client, message):
     chat_id = message.chat.id
@@ -174,7 +183,7 @@ async def download_and_upload_command(client, message):
         if user_id in progress_data:
             del progress_data[user_id]
 
-
+# Menangani perintah /start dan /help
 @app_bot.on_message(filters.command(['start', 'help']))
 async def send_welcome(client, message):
     help_message = """
@@ -186,6 +195,7 @@ async def send_welcome(client, message):
 """
     await client.reply_text(f"Selamat datang! Gunakan perintah berikut:\n{help_message}")
 
+# Web server setup
 web_app = Flask(__name__)
 
 @web_app.route('/')
@@ -194,18 +204,18 @@ def home():
 
 @web_app.route('/redirect')
 def redirect_page():
-    return redirect("https://nekopoi.care")
+    return redirect("https://example.com")  # Change URL for actual redirection
 
-def run_web_server():
-    web_app.run(host='0.0.0.0', port=5000)
+# Function to run both the Flask server and the bot
+def run_bot():
+    asyncio.run(app_bot.start())
+    app_bot.idle()
 
-async def run_bot():
-    await app_bot.start()
-    print("Bot started!")
-    await app_bot.idle()
-
+# Main function to run both web server and bot together
 if __name__ == "__main__":
-    web_server_thread = threading.Thread(target=run_web_server)
+    # Run the web server in a separate thread
+    web_server_thread = threading.Thread(target=web_app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
     web_server_thread.start()
 
-    asyncio.run(run_bot())
+    # Run the Telegram bot in the main thread
+    run_bot()
