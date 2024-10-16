@@ -7,12 +7,27 @@ from pyrogram import Client, filters
 from flask import Flask, redirect
 import threading
 
-# Telegram bot setup
+# Konfigurasi API Telegram
 API_ID = 961780
 API_HASH = "bbbfa43f067e1e8e2fb41f334d32a6a7"
-BOT_TOKEN = "7342220709:AAEyZVJPKuy6w_N9rwrVW3GghYyxx3jixww"
+BOT_TOKEN = "7375007973:AAEqgy2z2J2-Xii_wOhea98BmwMSdW82bHM"
 
 app_bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+# Web server setup
+web_app = Flask(__name__)
+
+# Route untuk homepage
+@web_app.route('/')
+def home():
+    return "Welcome to the simple redirect page!"
+
+# Route untuk pengalihan
+@web_app.route('/redirect')
+def redirect_page():
+    return redirect("https://example.com")  # Ubah URL ini untuk pengalihan sebenarnya
+
+# Variabel untuk melacak progress
 progress_data = {}
 
 async def progress(current, total):
@@ -195,27 +210,21 @@ async def send_welcome(client, message):
 """
     await client.reply_text(f"Selamat datang! Gunakan perintah berikut:\n{help_message}")
 
-# Web server setup
-web_app = Flask(__name__)
+# Fungsi untuk menjalankan web server di thread terpisah
+def run_web_server():
+    web_app.run(host='0.0.0.0', port=5000)
 
-@web_app.route('/')
-def home():
-    return "Welcome to the simple redirect page!"
+# Fungsi untuk menjalankan bot Telegram
+async def run_bot():
+    await app_bot.start()
+    print("Bot started!")
+    await app_bot.idle()
 
-@web_app.route('/redirect')
-def redirect_page():
-    return redirect("https://example.com")  # Change URL for actual redirection
-
-# Function to run both the Flask server and the bot
-def run_bot():
-    asyncio.run(app_bot.start())
-    app_bot.idle()
-
-# Main function to run both web server and bot together
+# Main function untuk menjalankan web server dan bot Telegram
 if __name__ == "__main__":
-    # Run the web server in a separate thread
-    web_server_thread = threading.Thread(target=web_app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
+    # Jalankan web server dalam thread terpisah
+    web_server_thread = threading.Thread(target=run_web_server)
     web_server_thread.start()
 
-    # Run the Telegram bot in the main thread
-    run_bot()
+    # Jalankan bot Telegram secara asynchronous
+    asyncio.run(run_bot())
