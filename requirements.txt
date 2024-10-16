@@ -1,0 +1,6 @@
+flask
+pyrogram
+tgcrypto
+requests
+threading
+asyncio
