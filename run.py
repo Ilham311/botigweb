@@ -1,20 +1,26 @@
-import os
 import requests
+import os
+from telethon import TelegramClient, events
+from flask import Flask
 import shutil
-from aiogram import Bot, Dispatcher, executor, types
-from aiohttp import web
-import logging
+from threading import Thread
+import asyncio
 
-# Bot token dari Telegram
-BOT_TOKEN = '7375007973:AAEqgy2z2J2-Xii_wOhea98BmwMSdW82bHM'
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+# Setup Flask
+app = Flask(__name__)
+PORT = int(os.environ.get('PORT', 3000))
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Endpoint sederhana untuk pengalihan
+@app.route('/')
+def index():
+    return '<h1>Selamat datang di Website Sederhana!</h1><p>Bot Telegram sedang berjalan di latar belakang...</p>'
+
+# Menjalankan Flask server
+def run_flask():
+    app.run(host='0.0.0.0', port=PORT)
 
 # Fungsi untuk API Twitter
-async def twitter_api(twitter_url):
+def twitter_api(twitter_url):
     url = 'https://twitter-downloader-download-twitter-videos-gifs-and-images.p.rapidapi.com/status'
     headers = {
         'x-rapidapi-key': '4f281a1be0msh5baa41ebeeda439p1d1139jsn3c26d05da8dd',
@@ -22,17 +28,18 @@ async def twitter_api(twitter_url):
         'Accept-Encoding': 'gzip',
         'User-Agent': 'okhttp/4.10.0'
     }
+    params = {'url': twitter_url}
     try:
-        response = requests.get(url, params={'url': twitter_url}, headers=headers)
-        response.raise_for_status()
-        variants = response.json()['media']['video']['videoVariants']
+        response = requests.get(url, headers=headers, params=params)
+        response_data = response.json()
+        variants = response_data['media']['video']['videoVariants']
         return next(v['url'] for v in variants if v['content_type'] == 'video/mp4')
     except Exception as e:
-        logging.error(f"Error fetching Twitter video: {e}")
+        print(e)
         return None
 
 # Fungsi untuk API Instagram
-async def get_instagram_media(instagram_url):
+def get_instagram_media(instagram_url):
     url = 'https://auto-download-all-in-one.p.rapidapi.com/v1/social/autolink'
     headers = {
         'x-rapidapi-key': 'da2822c5a9msh3665ef1bee3ad2cp1ab549jsn457a3b017e06',
@@ -41,16 +48,17 @@ async def get_instagram_media(instagram_url):
         'Accept-Encoding': 'gzip',
         'User-Agent': 'okhttp/3.14.9'
     }
+    data = {'url': instagram_url}
     try:
-        response = requests.post(url, json={'url': instagram_url}, headers=headers)
-        response.raise_for_status()
-        return response.json()['medias'][0]['url']
+        response = requests.post(url, json=data, headers=headers)
+        response_data = response.json()
+        return response_data['medias'][0]['url']
     except Exception as e:
-        logging.error(f"Error fetching Instagram media: {e}")
+        print(e)
         return None
 
 # Fungsi untuk API Facebook
-async def get_facebook_video_url(fb_url):
+def get_facebook_video_url(fb_url):
     url = f'https://vdfr.aculix.net/fb?url={fb_url}'
     headers = {
         'Authorization': 'erg4t5hyj6u75u64y5ht4gf3er4gt5hy6uj7k8l9',
@@ -59,97 +67,98 @@ async def get_facebook_video_url(fb_url):
     }
     try:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        media = response.json()['media']
-        return media[0]['video_url'] if media and media[0]['is_video'] else None
+        response_data = response.json()
+        media = response_data.get('media', [])
+        return next((m['video_url'] for m in media if m['is_video']), None)
     except Exception as e:
-        logging.error(f"Error fetching Facebook video: {e}")
+        print(e)
         return None
 
 # Fungsi untuk TikTok
-async def get_tiktok_play_url(tiktok_url):
+def get_tiktok_play_url(tiktok_url):
     api_url = f'https://www.tikwm.com/api/?url={tiktok_url}'
     try:
         response = requests.get(api_url)
-        response.raise_for_status()
-        return response.json()['data']['play']
+        response_data = response.json()
+        return response_data['data']['play']
     except Exception as e:
-        logging.error(f"Error fetching TikTok video: {e}")
+        print(e)
         return None
 
 # Fungsi untuk unduh dan unggah video
-async def download_and_upload(message: types.Message, video_url: str):
+async def download_and_upload(event, video_url):
     if not video_url:
-        await message.answer("Terjadi kesalahan saat mengambil URL video.")
+        await event.reply("Terjadi kesalahan saat mengambil URL video.")
         return
 
+    await event.reply("Video berhasil diunduh. Sedang mengunggah...")
     try:
-        file_path = 'video.mp4'
-        with requests.get(video_url, stream=True) as r:
-            r.raise_for_status()
-            with open(file_path, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
+        response = requests.get(video_url, stream=True)
+        file_path = './video.mp4'
+        with open(file_path, 'wb') as out_file:
+            shutil.copyfileobj(response.raw, out_file)
 
-        await message.answer_video(types.InputFile(file_path))
+        await event.reply(file=file_path)
         os.remove(file_path)  # Hapus file setelah diunggah
     except Exception as e:
-        logging.error(f"Error during download/upload: {e}")
-        await message.answer("Gagal mengunggah video.")
+        print(e)
+        await event.reply("Gagal mengunggah video.")
 
-# Fungsi handler platform
-async def handle_instagram(message: types.Message, url: str):
-    video_url = await get_instagram_media(url)
-    await download_and_upload(message, video_url)
+# Setup bot Telegram
+api_id = 961780  # Ganti dengan API ID Telegram Anda
+api_hash = 'bbbfa43f067e1e8e2fb41f334d32a6a7'
+bot_token = '7375007973:AAEqgy2z2J2-Xii_wOhea98BmwMSdW82bHM'
+client = TelegramClient('bot', api_id, api_hash)
 
-async def handle_facebook(message: types.Message, url: str):
-    video_url = await get_facebook_video_url(url)
-    await download_and_upload(message, video_url)
+# Menangani perintah unduh Instagram
+@client.on(events.NewMessage(pattern='/ig'))
+async def handle_instagram(event):
+    try:
+        url = event.message.text.split(' ')[1]  # Memeriksa apakah URL diberikan
+        video_url = get_instagram_media(url)
+        await download_and_upload(event, video_url)
+    except IndexError:
+        await event.reply("Silakan masukkan URL Instagram yang valid. Contoh: /ig <URL>")
 
-async def handle_twitter(message: types.Message, url: str):
-    video_url = await twitter_api(url)
-    await download_and_upload(message, video_url)
+# Menangani perintah unduh Facebook
+@client.on(events.NewMessage(pattern='/fb'))
+async def handle_facebook(event):
+    try:
+        url = event.message.text.split(' ')[1]  # Memeriksa apakah URL diberikan
+        video_url = get_facebook_video_url(url)
+        await download_and_upload(event, video_url)
+    except IndexError:
+        await event.reply("Silakan masukkan URL Facebook yang valid. Contoh: /fb <URL>")
 
-async def handle_tiktok(message: types.Message, url: str):
-    video_url = await get_tiktok_play_url(url)
-    await download_and_upload(message, video_url)
+# Menangani perintah unduh Twitter
+@client.on(events.NewMessage(pattern='/tw'))
+async def handle_twitter(event):
+    try:
+        url = event.message.text.split(' ')[1]  # Memeriksa apakah URL diberikan
+        video_url = twitter_api(url)
+        await download_and_upload(event, video_url)
+    except IndexError:
+        await event.reply("Silakan masukkan URL Twitter yang valid. Contoh: /tw <URL>")
 
-# Handler untuk perintah unduh
-@dp.message_handler(commands=['ig', 'fb', 'tw', 'tt'])
-async def download_video(message: types.Message):
-    text = message.text.split(' ')
-    command = text[0]
-    url = text[1] if len(text) > 1 else None
+# Menangani perintah unduh TikTok
+@client.on(events.NewMessage(pattern='/tt'))
+async def handle_tiktok(event):
+    try:
+        url = event.message.text.split(' ')[1]  # Memeriksa apakah URL diberikan
+        video_url = get_tiktok_play_url(url)
+        await download_and_upload(event, video_url)
+    except IndexError:
+        await event.reply("Silakan masukkan URL TikTok yang valid. Contoh: /tt <URL>")
 
-    if not url:
-        await message.answer("URL tidak valid. Silakan coba lagi.")
-        return
 
-    if command == '/ig':
-        await handle_instagram(message, url)
-    elif command == '/fb':
-        await handle_facebook(message, url)
-    elif command == '/tw':
-        await handle_twitter(message, url)
-    elif command == '/tt':
-        await handle_tiktok(message, url)
-    else:
-        await message.answer("Perintah tidak valid.")
+# Fungsi untuk menjalankan bot Telegram
+def run_bot():
+    loop = asyncio.new_event_loop()  # Membuat event loop baru
+    asyncio.set_event_loop(loop)  # Mengatur event loop di thread ini
+    client.start()
+    client.run_until_disconnected()
 
-# Fungsi untuk menjalankan bot
-async def on_startup(dp):
-    logging.info("Bot sedang berjalan...")
-
+# Menjalankan Flask dan bot Telegram di thread terpisah
 if __name__ == '__main__':
-    from aiogram.utils.executor import start_polling
-    start_polling(dp, on_startup=on_startup)
-
-# Setup Express Web Server
-async def handle_index(request):
-    return web.Response(text="<h1>Selamat datang di Website Sederhana!</h1><p>Bot Telegram sedang berjalan di latar belakang...</p>", content_type='text/html')
-
-app = web.Application()
-app.router.add_get('/', handle_index)
-
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
-    web.run_app(app, port=os.getenv('PORT', 3000))
+    Thread(target=run_flask).start()
+    Thread(target=run_bot).start()
