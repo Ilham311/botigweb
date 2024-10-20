@@ -8,7 +8,7 @@ import asyncio
 
 # Setup Flask
 app = Flask(__name__)
-PORT = int(os.environ.get('PORT', 3000))
+PORT = int(os.environ.get('PORT', 5000))
 
 # Endpoint sederhana untuk pengalihan
 @app.route('/')
